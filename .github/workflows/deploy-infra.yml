@@ -73,7 +73,7 @@ jobs:
             sudo docker stack deploy -c ~/management/portainer-stack.yml portainer --prune
 
             # Entramos a la carpeta para que Swarm detecte el archivo .env automáticamente
-            cd ~/automation && sudo docker stack deploy -c n8n-stack.yml n8n --prune
+            cd ~/automation && export $(grep -v '^#' .env | xargs) && sudo -E docker stack deploy -c n8n-stack.yml n8n --prune
 
             # --- 6. LIMPIEZA ---
             sudo docker image prune -a -f

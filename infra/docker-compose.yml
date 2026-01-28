@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   traefik:
-    image: traefik:v2.10 # Versión específica para evitar errores de digest en Swarm
+    image: traefik:v2.10
     command:
       - "--api.insecure=false"
       - "--api.dashboard=true"

@@ -1,4 +1,4 @@
-name: CI/CD Infrastructure Code Main v1.1
+name: CI/CD Infrastructure Code Main
 
 on:
   push:
@@ -15,6 +15,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # PASO NUEVO: Copia los archivos del repo al servidor
+      - name: Copy files via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "infra/,automation/,management/"
+          target: "/home/ubuntu/"
+
       - name: Deploy Stacks via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -22,51 +32,28 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # --- 1. AUTOMATIZACIÓN DE ESTRUCTURA Y PERMISOS ---
-            echo "Preparando directorios y permisos..."
+            # --- 1. ESTRUCTURA Y PERMISOS ---
             mkdir -p ~/infra/letsencrypt ~/automation/n8n_data ~/automation/postgres_data ~/management/portainer_data ~/backups
-            
-            # Permisos críticos para n8n (Usuario 1000)
             sudo chown -R 1000:1000 ~/automation/n8n_data
-            
-            # Permisos críticos para certificados SSL de Traefik
             touch ~/infra/letsencrypt/acme.json
             chmod 600 ~/infra/letsencrypt/acme.json
 
             # --- 2. GESTIÓN DE REDES ---
-            # Asegura la red overlay para comunicación entre stacks
             sudo docker network create --driver overlay public_net || true
 
-            # --- 3. BACKUP CON ROTACIÓN (PROTECCIÓN DE 16GB) ---
-            echo "Iniciando backup preventivo..."
-            # Definir nombre con fecha y hora
+            # --- 3. BACKUP CON ROTACIÓN ---
             BACKUP_NAME="n8n_db_$(date +%F_%H-%M)"
-            
-            # Ejecutar dump solo si el contenedor existe
             if [ "$(sudo docker ps -q -f name=n8n_postgres)" ]; then
                 sudo docker exec $(sudo docker ps -q -f name=n8n_postgres) pg_dumpall -U n8n_user > ~/backups/$BACKUP_NAME.sql
                 gzip ~/backups/$BACKUP_NAME.sql
-                echo "Backup $BACKUP_NAME.sql.gz generado exitosamente."
             fi
-
-            # Eliminar backups de más de 7 días para ahorrar espacio
             find ~/backups/ -name "*.gz" -mtime +7 -exec rm {} \;
-            echo "Rotación de backups completada."
 
-            # --- 4. DESPLIEGUE DE STACKS (IDEMPOTENCIA) ---
-            echo "Desplegando stacks en Docker Swarm..."
-            
-            # Traefik (Edge Router)
+            # --- 4. DESPLIEGUE (Ahora con archivos reales) ---
+            # Usamos los archivos que acabamos de copiar vía SCP
             sudo docker stack deploy -c ~/infra/docker-compose.yml infra --prune
-            
-            # Portainer (Management)
             sudo docker stack deploy -c ~/management/portainer-stack.yml portainer --prune
-            
-            # n8n (Automation)
             sudo docker stack deploy -c ~/automation/n8n-stack.yml n8n --prune
 
-            # --- 5. LIMPIEZA DE IMÁGENES (OPTIMIZACIÓN DE DISCO) ---
-            # Vital para no agotar los 16GB con capas de imágenes huérfanas
+            # --- 5. LIMPIEZA ---
             sudo docker image prune -a -f
-            
-            echo "¡Despliegue y mantenimiento finalizados con éxito!"

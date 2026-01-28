@@ -15,7 +15,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # PASO NUEVO: Copia los archivos del repo al servidor
       - name: Copy files via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -33,27 +32,38 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # --- 1. ESTRUCTURA Y PERMISOS ---
-            mkdir -p ~/infra/letsencrypt ~/automation/n8n_data ~/automation/postgres_data ~/management/portainer_data ~/backups
-            sudo chown -R 1000:1000 ~/automation/n8n_data
+            mkdir -p ~/n8n/n8n_data ~/n8n/postgres_data ~/management/portainer_data ~/backups
+            sudo chown -R 1000:1000 ~/n8n/n8n_data
             touch ~/infra/letsencrypt/acme.json
             chmod 600 ~/infra/letsencrypt/acme.json
 
-            # --- 2. GESTIÓN DE REDES ---
+            # --- 2. GESTIÓN DE VARIABLES SENSIBLES (.env) ---
+            # Creamos el archivo .env dinámicamente con los secretos de GitHub
+            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > ~/automation/.env
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> ~/automation/.env
+            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> ~/automation/.env
+            chmod 600 ~/automation/.env
+
+            # --- 3. GESTIÓN DE REDES ---
             sudo docker network create --driver overlay public_net || true
 
-            # --- 3. BACKUP CON ROTACIÓN ---
+            # --- 4. BACKUP PREVENTIVO ---
             BACKUP_NAME="n8n_db_$(date +%F_%H-%M)"
             if [ "$(sudo docker ps -q -f name=n8n_postgres)" ]; then
-                sudo docker exec $(sudo docker ps -q -f name=n8n_postgres) pg_dumpall -U n8n_user > ~/backups/$BACKUP_NAME.sql
+                sudo docker exec $(sudo docker ps -q -f name=n8n_postgres) pg_dumpall -U ${{ secrets.POSTGRES_USER }} > ~/backups/$BACKUP_NAME.sql
                 gzip ~/backups/$BACKUP_NAME.sql
             fi
             find ~/backups/ -name "*.gz" -mtime +7 -exec rm {} \;
 
-            # --- 4. DESPLIEGUE (Ahora con archivos reales) ---
-            # Usamos los archivos que acabamos de copiar vía SCP
+            # --- 5. DESPLIEGUE ---
+            # Traefik
             sudo docker stack deploy -c ~/infra/docker-compose.yml infra --prune
+            
+            # Portainer
             sudo docker stack deploy -c ~/management/portainer-stack.yml portainer --prune
-            sudo docker stack deploy -c ~/automation/n8n-stack.yml n8n --prune
+            
+            # n8n (Docker Swarm leerá automáticamente el archivo .env en ~/automation/)
+            cd ~/automation && sudo docker stack deploy -c n8n-stack.yml n8n --prune
 
-            # --- 5. LIMPIEZA ---
+            # --- 6. LIMPIEZA ---
             sudo docker image prune -a -f

@@ -1,4 +1,4 @@
-name: CI/CD Infrastructure Main
+name: CI/CD Infrastructure Code Main
 
 on:
   push:

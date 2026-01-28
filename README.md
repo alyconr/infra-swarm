@@ -1,6 +1,6 @@
 # Infra Swarm - Real Estate Agent Infrastructure
 
-This repository contains the Infrastructure as Code (IaC) for the Serviglobal  Agent platform, deployed on a Docker Swarm cluster.
+This repository contains the Infrastructure as Code (IaC) for the ServiglobalAI Agent platform, deployed on a Docker Swarm cluster.
 
 ## Architecture Overview
 

@@ -34,7 +34,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=public_net"
-        - "traefik.http.routers.portainer.rule=Host(`portainer.serviglobal.co`)"
+        - "traefik.http.routers.portainer.rule=Host(`portainer.serviglobal.co`)" # Cambia por tu subdominio de monitoreo
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=myresolver"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"

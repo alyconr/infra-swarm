@@ -2,11 +2,11 @@ name: CI/CD Infrastructure Code Main
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - 'infra/**'
-      - 'automation/**'
-      - 'management/**'
+      - "infra/**"
+      - "automation/**"
+      - "management/**"
 
 jobs:
   deploy:
@@ -50,13 +50,13 @@ jobs:
             # --- 4. BACKUP PREVENTIVO ---
             # Escapamos el signo $ de date para que bash lo ejecute en el servidor, no GitHub
             BACKUP_NAME="n8n_db_$(date +%F_%H-%M)"
-            
+
             # Buscamos el ID del contenedor de forma más robusta
             POSTGRES_CONTAINER=$(sudo docker ps -q -f name=n8n_postgres)
-            
+
             if [ ! -z "$POSTGRES_CONTAINER" ]; then
                 echo "Realizando backup de la base de datos..."
-                sudo docker exec $POSTGRES_CONTAINER pg_dumpall -U '${{ secrets.POSTGRES_USER }}' > ~/backups/$BACKUP_NAME.sql
+                sudo docker exec $POSTGRES_CONTAINER pg_dumpall -U "${{ secrets.POSTGRES_USER }}" > ~/backups/$BACKUP_NAME.sql
                 gzip ~/backups/$BACKUP_NAME.sql
             fi
             find ~/backups/ -name "*.gz" -mtime +7 -exec rm {} \;
@@ -64,7 +64,7 @@ jobs:
             # --- 5. DESPLIEGUE ---
             sudo docker stack deploy -c ~/infra/docker-compose.yml infra --prune
             sudo docker stack deploy -c ~/management/portainer-stack.yml portainer --prune
-            
+
             # Entramos a la carpeta para que Swarm detecte el archivo .env automáticamente
             cd ~/automation && sudo docker stack deploy -c n8n-stack.yml n8n --prune
 

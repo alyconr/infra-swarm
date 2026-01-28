@@ -26,10 +26,15 @@ jobs:
 
       - name: Deploy Stacks via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB
           script: |
             # --- 1. ESTRUCTURA Y PERMISOS ---
             mkdir -p ~/n8n/n8n_data ~/n8n/postgres_data ~/management/portainer_data ~/backups
@@ -38,10 +43,10 @@ jobs:
             chmod 600 ~/infra/letsencrypt/acme.json
 
             # --- 2. GESTIÓN DE VARIABLES SENSIBLES (.env) ---
-            # Usamos comillas simples para evitar que bash intente interpretar caracteres especiales en las contraseñas
-            printf "POSTGRES_USER='%s'\n" "${{ secrets.POSTGRES_USER }}" > ~/automation/.env
-            printf "POSTGRES_PASSWORD='%s'\n" "${{ secrets.POSTGRES_PASSWORD }}" >> ~/automation/.env
-            printf "POSTGRES_DB='%s'\n" "${{ secrets.POSTGRES_DB }}" >> ~/automation/.env
+            # Usamos variables de entorno pasadas por SSH para evitar problemas de comillas
+            echo "POSTGRES_USER=$POSTGRES_USER" > ~/automation/.env
+            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> ~/automation/.env
+            echo "POSTGRES_DB=$POSTGRES_DB" >> ~/automation/.env
             chmod 600 ~/automation/.env
 
             # --- 3. GESTIÓN DE REDES ---
@@ -56,7 +61,7 @@ jobs:
 
             if [ ! -z "$POSTGRES_CONTAINER" ]; then
                 echo "Realizando backup de la base de datos..."
-                sudo docker exec $POSTGRES_CONTAINER pg_dumpall -U "${{ secrets.POSTGRES_USER }}" > ~/backups/$BACKUP_NAME.sql
+                sudo docker exec $POSTGRES_CONTAINER pg_dumpall -U "$POSTGRES_USER" > ~/backups/$BACKUP_NAME.sql
                 gzip ~/backups/$BACKUP_NAME.sql
             fi
             find ~/backups/ -name "*.gz" -mtime +7 -exec rm {} \;

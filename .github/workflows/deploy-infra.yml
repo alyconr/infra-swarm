@@ -1,4 +1,4 @@
-name: CI/CD Infrastructure Master
+name: CI/CD Infrastructure Main
 
 on:
   push:
